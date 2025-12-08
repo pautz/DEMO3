@@ -10,3 +10,5 @@ https://www.mercadolivre.com.br/esp32-doit-devkit-com-esp32-wroom-32/p/MLB282510
 https://www.mercadolivre.com.br/modulo-rele-1-canal-5v-para-arduino/p/MLB2039723964?pdp_filters=item_id%3AMLB4114296483&from=gshop
 
 https://www.mercadolivre.com.br/jumper-fio-40pcs-de-20cm-machofmea-para-arduino/p/MLB35869538?pdp_filters=item_id:MLB4512725130#is_advertising=true&searchVariation=MLB35869538&backend_model=search-backend&position=1&search_layout=grid&type=pad&tracking_id=2abfc085-a593-4ac1-a9e7-4f97f36c82a6&ad_domain=VQCATCORE_LST&ad_position=1&ad_click_id=NDU4NmRiMDAtMzhhYi00Mjc5LWJmNmYtZjc4OGU0NDU0OTFl
+
+extensão bocal ponta vai no rele
