@@ -1,27 +1,26 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
-const char* ssid = "SEU_WIFI";       // SSID da sua rede WiFi
-const char* password = "SUA_SENHA";  // Senha do WiFi
+const char* ssid = "SEU_WIFI";
+const char* password = "SUA_SENHA";
 
-const int relePin = 5; // pino conectado ao módulo relé
+const int relePin = 5; // pino do relé
 
 unsigned long ultimoPing = 0;
-const unsigned long intervalo = 60000; // 1 minuto em ms
+const unsigned long intervalo = 60000; // 1 minuto
 
 void setup() {
   pinMode(relePin, OUTPUT);
-  digitalWrite(relePin, LOW); // começa desligado
+  digitalWrite(relePin, LOW);
 
   Serial.begin(115200);
 
   WiFi.begin(ssid, password);
-  Serial.print("Conectando ao WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.print(".");
   }
-  Serial.println("\nConectado!");
+  Serial.println("\nWiFi conectado!");
 }
 
 void loop() {
@@ -32,18 +31,15 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
-
-      // URL do seu PHP (ajuste conforme seu servidor)
-      String url = "http://seusite.com/virada.php?id=1&status=1&tag=ABC123";
+      String url = "http://carlitoslocacoes.com/Demo3/virada.php?id=1&status=1&tag=ABC123";
       http.begin(url);
 
       int httpCode = http.GET();
       if (httpCode == 200) {
         String payload = http.getString();
-        Serial.println("Resposta do servidor: " + payload);
+        Serial.println("Resposta: " + payload);
 
-        // Se PHP retornar "ligada" ou "1"
-        if (payload.indexOf("ligada") >= 0 || payload == "1") {
+        if (payload == "1") {
           digitalWrite(relePin, HIGH); // liga relé
           Serial.println("Relé ligado");
         } else {
@@ -54,8 +50,6 @@ void loop() {
         Serial.println("Erro HTTP: " + String(httpCode));
       }
       http.end();
-    } else {
-      Serial.println("WiFi desconectado!");
     }
   }
 }
