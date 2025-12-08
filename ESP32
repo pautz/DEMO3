@@ -31,7 +31,7 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
-      String url = "http://carlitoslocacoes.com/Demo3/virada.php?id=1&status=1&tag=ABC123";
+      String url = "http://carlitoslocacoes.com/Demo3/virada.php?id=21&status=1&tag=TESLA";
       http.begin(url);
 
       int httpCode = http.GET();
