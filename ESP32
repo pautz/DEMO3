@@ -7,7 +7,7 @@ const char* password = "SUA_SENHA";
 const int relePin = 5; // pino do relé
 
 unsigned long ultimoPing = 0;
-const unsigned long intervalo = 60000; // 1 minuto
+const unsigned long intervalo = 1000; // 1 minuto
 
 void setup() {
   pinMode(relePin, OUTPUT);
