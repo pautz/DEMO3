@@ -20,4 +20,4 @@ Codigo ESP32 no ESP32, ligue o rele no 5pin vin gnd, conecte a extensao bocal no
 [carlitoslocacoes.com/Demo3](https://carlitoslocacoes.com/Demo3)
 
 
-faça a instalacao do arduino ide, do modulo eps32, indo em tools manage libraries, e do ArduinoJson do autor Benoit Blanchon
+faça a instalacao do arduino ide, indo em tools manage libraries, instale o esp32 Espressif Boards e o ArduinoJson do autor Benoit Blanchon
