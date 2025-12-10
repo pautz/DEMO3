@@ -1,0 +1,70 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>  // Biblioteca para interpretar JSON
+
+const char* ssid = "SEU_WIFI";       // coloque o nome da sua rede Wi-Fi
+const char* password = "SUA_SENHA";  // coloque a senha da sua rede
+
+const int relePin = 5; // pino do relé
+
+unsigned long ultimoPing = 0;
+const unsigned long intervalo = 10000; // consulta a cada 10 segundos
+
+void setup() {
+  pinMode(relePin, OUTPUT);
+  digitalWrite(relePin, LOW);
+
+  Serial.begin(115200);
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi conectado!");
+}
+
+void loop() {
+  unsigned long agora = millis();
+
+  if (agora - ultimoPing >= intervalo) {
+    ultimoPing = agora;
+
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      String url = "http://carlitoslocacoes.com/Demo3/virada.php?id=21&tag=TESLA";
+      http.begin(url);
+
+      int httpCode = http.GET();
+      if (httpCode == 200) {
+        String payload = http.getString();
+        Serial.println("Resposta: " + payload);
+
+        // Interpretar JSON
+        StaticJsonDocument<200> doc;
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (!error) {
+          int status = doc["status"];   // espera 1 ou 0
+          int saldo  = doc["saldo"];    // saldo numérico
+
+          Serial.println("Status: " + String(status));
+          Serial.println("Saldo: " + String(saldo));
+
+          if (status == 1 && saldo > 0) {
+            digitalWrite(relePin, HIGH); // liga relé
+            Serial.println("Relé ligado");
+          } else {
+            digitalWrite(relePin, LOW);  // desliga relé
+            Serial.println("Relé desligado");
+          }
+        } else {
+          Serial.println("Erro ao interpretar JSON");
+        }
+      } else {
+        Serial.println("Erro HTTP: " + String(httpCode));
+      }
+      http.end();
+    }
+  }
+}
