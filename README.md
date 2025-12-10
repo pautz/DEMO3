@@ -16,3 +16,5 @@ https://www.mercadolivre.com.br/jumper-fio-40pcs-de-20cm-machofmea-para-arduino/
 extensão bocal ponta vai no rele
 
 Codigo ESP32 no ESP32, ligue o rele no 5pin vin gnd, conecte a extensao bocal no rele
+
+carlitoslocacoes.com
