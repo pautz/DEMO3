@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>  // Biblioteca para interpretar JSON
+#include <ArduinoJson.h>  // ainda útil se o servidor mandar JSON
 
 const char* ssid = "SEU_WIFI";       // coloque o nome da sua rede Wi-Fi
 const char* password = "SUA_SENHA";  // coloque a senha da sua rede
@@ -40,27 +40,29 @@ void loop() {
         String payload = http.getString();
         Serial.println("Resposta: " + payload);
 
-        // Interpretar JSON
+        // Se o servidor mandar só "1" ou "0"
+        if (payload == "1") {
+          digitalWrite(relePin, HIGH); // liga relé
+          Serial.println("Relé ligado");
+        } else {
+          digitalWrite(relePin, LOW);  // desliga relé
+          Serial.println("Relé desligado");
+        }
+
+        // Se o servidor mandar JSON {"status":1}
+        /*
         StaticJsonDocument<200> doc;
-        DeserializationError error = deserializeJson(doc, payload);
-
-        if (!error) {
-          int status = doc["status"];   // espera 1 ou 0
-          int saldo  = doc["saldo"];    // saldo numérico
-
-          Serial.println("Status: " + String(status));
-          Serial.println("Saldo: " + String(saldo));
-
-          if (status == 1 && saldo > 0) {
-            digitalWrite(relePin, HIGH); // liga relé
+        if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+          int status = doc["status"];
+          if (status == 1) {
+            digitalWrite(relePin, HIGH);
             Serial.println("Relé ligado");
           } else {
-            digitalWrite(relePin, LOW);  // desliga relé
+            digitalWrite(relePin, LOW);
             Serial.println("Relé desligado");
           }
-        } else {
-          Serial.println("Erro ao interpretar JSON");
         }
+        */
       } else {
         Serial.println("Erro HTTP: " + String(httpCode));
       }
