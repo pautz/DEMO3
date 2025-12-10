@@ -1,21 +1,25 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>  // ainda útil se o servidor mandar JSON
+#include <ArduinoJson.h>  // Biblioteca para interpretar JSON
 
-const char* ssid = "SEU_WIFI";       // coloque o nome da sua rede Wi-Fi
-const char* password = "SUA_SENHA";  // coloque a senha da sua rede
+// Configurações da rede Wi-Fi
+const char* ssid = "SEU_WIFI";
+const char* password = "SUA_SENHA";
 
-const int relePin = 5; // pino do relé
+// Pino do relé
+const int relePin = 5;
 
+// Intervalo entre consultas (em ms)
 unsigned long ultimoPing = 0;
-const unsigned long intervalo = 10000; // consulta a cada 10 segundos
+const unsigned long intervalo = 10000; // 10 segundos
 
 void setup() {
   pinMode(relePin, OUTPUT);
-  digitalWrite(relePin, LOW);
+  digitalWrite(relePin, LOW); // começa desligado
 
   Serial.begin(115200);
 
+  // Conecta ao Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -32,6 +36,7 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
+      // URL do seu virada.php (sem saldo, apenas status)
       String url = "http://carlitoslocacoes.com/Demo3/virada.php?id=21&tag=TESLA";
       http.begin(url);
 
@@ -40,29 +45,29 @@ void loop() {
         String payload = http.getString();
         Serial.println("Resposta: " + payload);
 
-        // Se o servidor mandar só "1" ou "0"
-        if (payload == "1") {
-          digitalWrite(relePin, HIGH); // liga relé
-          Serial.println("Relé ligado");
-        } else {
-          digitalWrite(relePin, LOW);  // desliga relé
-          Serial.println("Relé desligado");
-        }
+        // Interpretar JSON
+        StaticJsonDocument<512> doc;
+        DeserializationError error = deserializeJson(doc, payload);
 
-        // Se o servidor mandar JSON {"status":1}
-        /*
-        StaticJsonDocument<200> doc;
-        if (deserializeJson(doc, payload) == DeserializationError::Ok) {
-          int status = doc["status"];
-          if (status == 1) {
-            digitalWrite(relePin, HIGH);
+        if (!error) {
+          // Como o PHP retorna um array JSON, pegamos o primeiro item
+          JsonObject obj = doc[0];
+
+          int statusAtual = obj["status_atual"];
+
+          Serial.println("Status atual: " + String(statusAtual));
+
+          // Decide se liga ou desliga
+          if (statusAtual == 1) {
+            digitalWrite(relePin, HIGH); // liga relé
             Serial.println("Relé ligado");
           } else {
-            digitalWrite(relePin, LOW);
+            digitalWrite(relePin, LOW);  // desliga relé
             Serial.println("Relé desligado");
           }
+        } else {
+          Serial.println("Erro ao interpretar JSON");
         }
-        */
       } else {
         Serial.println("Erro HTTP: " + String(httpCode));
       }
