@@ -36,7 +36,7 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
-      // URL do seu virada.php (sem saldo, apenas status)
+      // URL do seu virada.php (sem status, apenas consulta)
       String url = "http://carlitoslocacoes.com/Demo3/virada.php?id=21&tag=TESLA";
       http.begin(url);
 
@@ -54,11 +54,15 @@ void loop() {
           JsonObject obj = doc[0];
 
           int statusAtual = obj["status_atual"];
+          float saldo = obj["saldo"];
+          const char* mensagem = obj["mensagem"];
 
           Serial.println("Status atual: " + String(statusAtual));
+          Serial.println("Saldo: " + String(saldo));
+          if (mensagem) Serial.println("Mensagem: " + String(mensagem));
 
           // Decide se liga ou desliga
-          if (statusAtual == 1) {
+          if (statusAtual == 1 && saldo > 0) {
             digitalWrite(relePin, HIGH); // liga relé
             Serial.println("Relé ligado");
           } else {
