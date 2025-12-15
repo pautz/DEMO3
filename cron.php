@@ -14,23 +14,23 @@ if ($conn->connect_error) {
     die("Erro na conexão: " . $conn->connect_error);
 }
 
-// Busca todas as máquinas ativas com saldo > 0
+// Busca todas as máquinas ativas (mesmo com saldo zerado)
 $sql = "SELECT id, usuario, auras_por_hora, saldo_aura, ultima_atualizacao 
         FROM maquinas 
-        WHERE status = 1 AND saldo_aura > 0";
+        WHERE status = 1";
 $result = $conn->query($sql);
 
 while ($m = $result->fetch_assoc()) {
     $id          = intval($m['id']);
     $usuario     = $m['usuario'];
-    $consumoHora = floatval($m['auras_por_hora']); // taxa de consumo em auras/hora
+    $consumoHora = floatval($m['auras_por_hora']);
     $saldo       = floatval($m['saldo_aura']);
     $ultimaAtual = $m['ultima_atualizacao'] ?? null;
 
     // Se não houver ultima_atualizacao, usa inicio_gasto
     if (!$ultimaAtual) {
         $stmt = $conn->prepare("SELECT inicio_gasto FROM historico_status 
-                                WHERE maquina_id=? AND status_novo=1 
+                                WHERE maquina_id=? AND status_novo=1 AND fim_gasto IS NULL 
                                 ORDER BY id DESC LIMIT 1");
         $stmt->bind_param("i", $id);
         $stmt->execute();
@@ -52,9 +52,17 @@ while ($m = $result->fetch_assoc()) {
         // Consumo proporcional por segundo
         $gastoAura = $segundos * ($consumoHora / 3600);
 
-        // Atualiza saldo
+        // Limita gasto ao saldo disponível
+        if ($gastoAura > $saldo) {
+            $gastoAura = $saldo;
+        }
+
         $novoSaldo = $saldo - $gastoAura;
-        if ($novoSaldo < 0) $novoSaldo = 0;
+
+        // 🔒 Se o saldo ficar muito pequeno, força a zero
+        if ($novoSaldo <= 0.0001) {
+            $novoSaldo = 0;
+        }
 
         // Atualiza saldo e ultima_atualizacao
         $stmtUp = $conn->prepare("UPDATE maquinas SET saldo_aura=?, ultima_atualizacao=NOW() WHERE id=?");
@@ -63,22 +71,47 @@ while ($m = $result->fetch_assoc()) {
         $stmtUp->close();
 
         // Atualiza histórico acumulando o gasto
-        $stmtHist = $conn->prepare("UPDATE historico_status 
-                                    SET total_gasto = total_gasto + ? 
-                                    WHERE maquina_id=? AND status_novo=1 
-                                    ORDER BY id DESC LIMIT 1");
-        $stmtHist->bind_param("di", $gastoAura, $id);
+        $stmtHist = $conn->prepare("
+            UPDATE historico_status 
+            SET total_gasto = total_gasto + ? 
+            WHERE id = (
+                SELECT id FROM (
+                    SELECT id 
+                    FROM historico_status 
+                    WHERE maquina_id=? AND usuario=? AND fim_gasto IS NULL 
+                    ORDER BY id DESC LIMIT 1
+                ) AS sub
+            )
+        ");
+        $stmtHist->bind_param("dis", $gastoAura, $id, $usuario);
         $stmtHist->execute();
         $stmtHist->close();
 
-        // Se saldo zerou, inativa a máquina
+        // Se saldo zerou, inativa a máquina e fecha histórico
         if ($novoSaldo <= 0) {
-            $stmtInativa = $conn->prepare("UPDATE maquinas SET status=0 WHERE id=?");
+            $stmtInativa = $conn->prepare("UPDATE maquinas SET status=0, saldo_aura=0 WHERE id=?");
             $stmtInativa->bind_param("i", $id);
             $stmtInativa->execute();
             $stmtInativa->close();
 
-            echo date("Y-m-d H:i:s") . " - Máquina $id INATIVADA (saldo zerado).\n";
+            // Fecha histórico com fim_gasto e status_novo=0
+            $stmtFim = $conn->prepare("
+                UPDATE historico_status 
+                SET fim_gasto = NOW(), status_novo = 0 
+                WHERE id = (
+                    SELECT id FROM (
+                        SELECT id 
+                        FROM historico_status 
+                        WHERE maquina_id=? AND usuario=? AND fim_gasto IS NULL 
+                        ORDER BY id DESC LIMIT 1
+                    ) AS sub
+                )
+            ");
+            $stmtFim->bind_param("is", $id, $usuario);
+            $stmtFim->execute();
+            $stmtFim->close();
+
+            echo date("Y-m-d H:i:s") . " - Máquina $id INATIVADA (saldo zerado, fim registrado).\n";
         } else {
             echo date("Y-m-d H:i:s") . " - Máquina $id atualizada. Intervalo: $segundos s | Gasto Aura: $gastoAura | Saldo: $novoSaldo\n";
         }
