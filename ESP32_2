@@ -2,6 +2,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "time.h"
 
 // Configurações da rede Wi-Fi (2.4 GHz)
 const char* ssid = "Mariane";
@@ -14,6 +15,12 @@ const int relePin = 5;
 unsigned long ultimoPing = 0;
 const unsigned long intervalo = 1000; // 10 segundos
 
+// Configuração de NTP e fuso horário
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0 * 3600;   // UTC-4 (Mato Grosso)
+const int daylightOffset_sec = 0;       // sem horário de verão
+
+
 void setup() {
   pinMode(relePin, OUTPUT);
   digitalWrite(relePin, LOW);
@@ -21,7 +28,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("ESP32 WROVER Kit inicializando...");
 
-  // Conecta ao Wi-Fi (tentativas infinitas)
+  // Conecta ao Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -31,12 +38,23 @@ void setup() {
   Serial.println("\nWiFi conectado!");
   Serial.print("IP do ESP32: ");
   Serial.println(WiFi.localIP());
+
+  // Configura NTP e fuso horário
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  Serial.println("Sincronizando hora via NTP...");
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Falha ao obter hora");
+    return;
+  }
+  Serial.println(&timeinfo, "Hora local: %d/%m/%Y %H:%M:%S");
 }
 
 void loop() {
   unsigned long agora = millis();
 
-  // Se perder conexão, tenta reconectar infinitamente
+  // Se perder conexão, tenta reconectar
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi desconectado, tentando reconectar...");
     WiFi.reconnect();
@@ -91,5 +109,11 @@ void loop() {
       Serial.println("Erro HTTP: " + String(httpCode));
     }
     http.end();
+
+    // Mostra hora local atual
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      Serial.println(&timeinfo, "Hora local: %d/%m/%Y %H:%M:%S");
+    }
   }
 }
