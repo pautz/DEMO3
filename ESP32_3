@@ -1,0 +1,130 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include "time.h"
+
+// Configurações da rede Wi-Fi (2.4 GHz)
+const char* ssid = "Mariane";
+const char* password = "mari9515";
+
+// Pino do relé
+const int relePin = 5;
+
+// Intervalo entre consultas ao servidor (ms)
+unsigned long ultimoPing = 0;
+const unsigned long intervalo = 10000; // 10 segundos
+
+// Configuração de NTP e fuso horário (Europe/London)
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0;   // UTC (London)
+const int daylightOffset_sec = 0; // sem horário de verão automático
+
+// Função para conectar ao Wi-Fi com timeout
+void conectarWiFi() {
+  if (WiFi.status() == WL_CONNECTED) return;
+
+  Serial.println("Conectando ao WiFi...");
+  WiFi.begin(ssid, password);
+
+  unsigned long inicio = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - inicio < 15000) { // tenta por 15s
+    delay(500);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi conectado!");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nFalha ao conectar. Tentará novamente...");
+  }
+}
+
+void setup() {
+  pinMode(relePin, OUTPUT);
+  digitalWrite(relePin, LOW);
+
+  Serial.begin(115200);
+  Serial.println("ESP32 inicializando...");
+
+  conectarWiFi();
+
+  // Configura NTP e fuso horário
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  Serial.println("Sincronizando hora via NTP...");
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Falha ao obter hora");
+    return;
+  }
+  Serial.println(&timeinfo, "Hora local (Europe/London): %d/%m/%Y %H:%M:%S");
+}
+
+void loop() {
+  unsigned long agora = millis();
+
+  // Se perder conexão, tenta reconectar
+  if (WiFi.status() != WL_CONNECTED) {
+    conectarWiFi();
+  }
+
+  // Consulta ao servidor a cada 10 segundos
+  if (agora - ultimoPing >= intervalo) {
+    ultimoPing = agora;
+
+    if (WiFi.status() == WL_CONNECTED) {
+      WiFiClientSecure client;
+      client.setInsecure(); // ignora verificação de certificado SSL
+
+      HTTPClient http;
+      String url = "https://carlitoslocacoes.com/Demo3/virada.php?id=21&tag=TESLA";
+      http.begin(client, url);
+
+      int httpCode = http.GET();
+      if (httpCode == 200) {
+        String payload = http.getString();
+        Serial.println("Resposta: " + payload);
+
+        StaticJsonDocument<512> doc;
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (!error) {
+          int statusAtual = 0;
+
+          // Verifica se veio um array ou objeto simples
+          if (doc.is<JsonArray>()) {
+            JsonObject obj = doc[0].as<JsonObject>();
+            statusAtual = obj["status_atual"].as<int>();
+          } else {
+            JsonObject obj = doc.as<JsonObject>();
+            statusAtual = obj["status_atual"].as<int>();
+          }
+
+          Serial.println("Status atual recebido: " + String(statusAtual));
+
+          if (statusAtual == 1) {
+            digitalWrite(relePin, HIGH); // ou LOW se seu relé for ativo em LOW
+            Serial.println("Relé ligado");
+          } else {
+            digitalWrite(relePin, LOW);  // ou HIGH se invertido
+            Serial.println("Relé desligado");
+          }
+        } else {
+          Serial.println("Erro ao interpretar JSON");
+        }
+      } else {
+        Serial.println("Erro HTTP: " + String(httpCode));
+      }
+      http.end();
+    }
+
+    // Mostra hora local atual
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      Serial.println(&timeinfo, "Hora local (Europe/London): %d/%m/%Y %H:%M:%S");
+    }
+  }
+}
