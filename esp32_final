@@ -1,0 +1,112 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include "time.h"
+
+const char* ssid = "Mariane";
+const char* password = "mari9515";
+
+const int relePin = 5;
+
+unsigned long ultimoPing = 0;
+const unsigned long intervalo = 10000; // 10s
+
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = -3 * 3600; // America/Cuiaba
+const int daylightOffset_sec = 0;
+
+void conectarWiFi() {
+  if (WiFi.status() == WL_CONNECTED) return;
+  Serial.println("Conectando ao WiFi...");
+  WiFi.begin(ssid, password);
+  unsigned long inicio = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - inicio < 15000) {
+    delay(500);
+    Serial.print(".");
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi conectado!");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nFalha ao conectar. Tentará novamente...");
+  }
+}
+
+void setup() {
+  pinMode(relePin, OUTPUT);
+  digitalWrite(relePin, LOW); // relé desligado inicialmente
+  Serial.begin(115200);
+  Serial.println("ESP32 inicializando...");
+  conectarWiFi();
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+}
+
+void loop() {
+  unsigned long agora = millis();
+  if (WiFi.status() != WL_CONNECTED) conectarWiFi();
+
+  if (agora - ultimoPing >= intervalo) {
+    ultimoPing = agora;
+
+    if (WiFi.status() == WL_CONNECTED) {
+      WiFiClientSecure client;
+      client.setInsecure();
+      HTTPClient http;
+      String url = "https://carlitoslocacoes.com/Demo3/virada.php?id=21&tag=TESLA";
+      http.begin(client, url);
+
+      int httpCode = http.GET();
+      if (httpCode == 200) {
+        String payload = http.getString();
+        Serial.println("Payload bruto: " + payload);
+
+        StaticJsonDocument<1024> doc;
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (!error) {
+          JsonObject obj;
+          if (doc.is<JsonArray>()) {
+            if (doc.size() > 0) obj = doc[0].as<JsonObject>();
+            else Serial.println("JSON array vazio.");
+          } else {
+            obj = doc.as<JsonObject>();
+          }
+
+          float saldo = obj["saldo"] | 0.0f;
+          float auraPorHora = obj["auras_por_hora"] | 0.0f;
+          int statusParar = obj["status_parar"] | 0;
+          const char* acao = obj["acao"] | "";
+
+          Serial.printf("Saldo: %.2f | Auras/hora: %.2f | status_parar=%d | Ação=%s\n",
+                        saldo, auraPorHora, statusParar, acao);
+
+          // Lógica do relé
+          if (statusParar == 1 || strcmp(acao, "parar") == 0) {
+            digitalWrite(relePin, LOW);
+            Serial.println("⚠️ Relé DESLIGADO por comando de parada.");
+          } else {
+            if (saldo >= auraPorHora && auraPorHora > 0) {
+              digitalWrite(relePin, HIGH);
+              Serial.println("✅ Relé LIGADO (saldo suficiente).");
+            } else {
+              digitalWrite(relePin, LOW);
+              Serial.println("⚠️ Relé DESLIGADO (saldo insuficiente).");
+            }
+          }
+        } else {
+          Serial.println("Erro ao interpretar JSON");
+        }
+      } else {
+        Serial.println("Erro HTTP: " + String(httpCode));
+      }
+      http.end();
+    }
+
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      Serial.println(&timeinfo, "Hora local: %d/%m/%Y %H:%M:%S");
+    }
+  }
+}
