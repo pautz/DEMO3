@@ -1,0 +1,81 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+
+// 🔧 Configurações WiFi
+const char* ssid = "Mariane";
+const char* password = "mari9515";
+
+// 🔧 URL do servidor (use sempre HTTPS)
+const char* serverName = "https://carlitoslocacoes.com/greenesp32.php";
+
+// 🔧 LED onboard do ESP32 (GPIO2)
+#define LED_PIN 2
+
+WiFiClientSecure client;
+
+// Função para conectar ao WiFi
+void conectarWiFi() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("🔄 Tentando conectar ao WiFi...");
+    WiFi.begin(ssid, password);
+
+    unsigned long inicio = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - inicio < 15000) {
+      delay(1000);
+      Serial.print(".");
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n✅ Conectado ao WiFi!");
+      Serial.print("IP: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("\n❌ Falha ao conectar. Tentará novamente...");
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+
+  conectarWiFi();
+
+  // Ignorar verificação de certificado SSL (mais simples, mas menos seguro)
+  client.setInsecure();
+}
+
+void loop() {
+  // Verifica e reconecta se necessário
+  if (WiFi.status() != WL_CONNECTED) {
+    conectarWiFi();
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(client, serverName); // usa HTTPS com WiFiClientSecure
+
+    int httpResponseCode = http.GET();
+
+    if (httpResponseCode == 200) {
+      String payload = http.getString();
+      int total = payload.toInt();
+      Serial.print("Reservas: ");
+      Serial.println(total);
+
+      if (total > 0) {
+        digitalWrite(LED_PIN, HIGH); // acende LED
+      } else {
+        digitalWrite(LED_PIN, LOW);  // apaga LED
+      }
+    } else {
+      Serial.print("Erro HTTP: ");
+      Serial.println(httpResponseCode);
+    }
+
+    http.end();
+  }
+
+  delay(10000); // consulta a cada 10 segundos
+}
